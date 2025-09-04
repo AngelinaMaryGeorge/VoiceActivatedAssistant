@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voice-Activated Personal Assistant</title>
+    <!-- Tailwind CSS for a beautiful, responsive design -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+
+        /* Hide scrollbar for WebKit browsers (Chrome, Safari, etc.) */
+        ::-webkit-scrollbar {
+            width: 0;
+            background: transparent;
+        }
+
+        /* Hide scrollbar for Firefox */
+        /* Removed 'scrollbar-width: none;' for better browser compatibility */
+
+        /* Hide scrollbar for Internet Explorer and Edge */
+        body, html {
+            -ms-overflow-style: none;
+        }
+
+        /* Pulse animation for the microphone button */
+        .pulse-animation {
+            animation: pulse-ring 1.2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        @keyframes pulse-ring {
+            0% {
+                transform: scale(0.95);
+                box-shadow: 0 0 0 0 rgba(100, 116, 139, 0.7);
+            }
+            70% {
+                transform: scale(1);
+                box-shadow: 0 0 0 10px rgba(100, 116, 139, 0);
+            }
+            100% {
+                transform: scale(0.95);
+                box-shadow: 0 0 0 0 rgba(100, 116, 139, 0);
+            }
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-indigo-100 via-purple-100 to-pink-100 min-h-screen flex items-center justify-center p-4">
+
+    <div class="bg-white rounded-3xl shadow-xl p-8 w-full max-w-2xl flex flex-col h-[90vh]">
+
+        <!-- Header -->
+        <div class="text-center mb-6">
+            <h1 class="text-3xl font-bold text-gray-800">Voice Assistant</h1>
+            <p id="assistant-status" class="text-gray-500 transition-colors">How can I help you today?</p>
+        </div>
+
+        <!-- Chat Display Area -->
+        <div id="chat-history" class="chat-container max-h-[70vh] overflow-y-auto space-y-4 mb-6">
+            <!-- Initial assistant message -->
+            <div class="flex items-start space-x-3">
+                <div class="flex-shrink-0 w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold">A</div>
+                <div class="assistant-message bg-blue-500 text-white rounded-xl p-3 max-w-xs md:max-w-md shadow-lg">
+                    <p>Hello! I'm your voice-activated personal assistant. Please click the microphone and say something to get started. You can say 'Hello' or one of the many greetings to activate me!</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Microphone Button and Input Area -->
+        <div class="flex items-center space-x-4">
+            <button id="mic-button" title="Activate microphone" class="flex-shrink-0 w-16 h-16 rounded-full bg-indigo-500 text-white flex items-center justify-center shadow-lg hover:bg-indigo-600 transition-transform transform hover:scale-105 active:scale-95">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4z" clip-rule="evenodd" />
+                    <path fill-rule="evenodd" d="M11 16a4 4 0 004-4v-1a1 1 0 112 0v1a6 6 0 01-6 6v2a1 1 0 11-2 0v-2a6 6 0 01-6-6v-1a1 1 0 112 0v1a4 4 0 004 4z" clip-rule="evenodd" />
+                </svg>
+            </button>
+            <div id="user-input-display" class="flex-grow bg-gray-100 rounded-full p-4 text-gray-700 text-center text-sm italic">
+                Click the microphone to start speaking...
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Store some state variables
+        let isListening = false;
+        let isActivated = false;
+        let currentArticles = []; // To store news articles for confirmation
+
+        const micButton = document.getElementById('mic-button');
+        const chatHistory = document.getElementById('chat-history');
+        const userInputDisplay = document.getElementById('user-input-display');
+        const assistantStatus = document.getElementById('assistant-status');
+
+        // Check for Web Speech API support
+        if ('webkitSpeechRecognition' in window) {
+            var recognition = new webkitSpeechRecognition();
+            recognition.continuous = false;
+            recognition.interimResults = false;
+            recognition.lang = 'en-US';
+        } else {
+            console.error("Web Speech API is not supported in this browser.");
+            userInputDisplay.textContent = "Your browser does not support the Web Speech API. Please use Google Chrome.";
+            micButton.disabled = true;
+        }
+
+        // Add a message to the chat history
+        function addMessage(text, isUser = false) {
+            const messageElement = document.createElement('div');
+            messageElement.classList.add('flex', 'space-x-3');
+
+            if (isUser) {
+                messageElement.classList.add('justify-end');
+                messageElement.innerHTML = `
+                    <div class="user-message bg-purple-500 text-white rounded-xl p-3 max-w-xs md:max-w-md shadow-lg">
+                        <p>${text}</p>
+                    </div>
+                    <div class="flex-shrink-0 w-8 h-8 rounded-full bg-purple-500 flex items-center justify-center text-white font-bold">U</div>
+                `;
+            } else {
+                messageElement.classList.add('items-start');
+                messageElement.innerHTML = `
+                    <div class="flex-shrink-0 w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold">A</div>
+                    <div class="assistant-message bg-blue-500 text-white rounded-xl p-3 max-w-xs md:max-w-md shadow-lg">
+                        <p>${text}</p>
+                    </div>
+                `;
+            }
+            chatHistory.appendChild(messageElement);
+            chatHistory.scrollTop = chatHistory.scrollHeight; // Auto-scroll to the latest message
+        }
+
+        // Add a styled card for weather
+        function addWeatherCard(data) {
+            const card = document.createElement('div');
+            card.className = "flex items-center space-x-3";
+            card.innerHTML = `
+                <div class="flex-shrink-0 w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold">A</div>
+                <div class="bg-white text-gray-800 rounded-xl p-4 max-w-xs md:max-w-md shadow-lg border border-gray-200">
+                    <h4 class="font-bold text-lg">${data.location}</h4>
+                    <p class="text-sm">Temperature: <span class="font-semibold">${data.temperature}</span></p>
+                    <p class="text-sm">Description: <span class="font-semibold">${data.description}</span></p>
+                    <p class="text-sm">Humidity: <span class="font-semibold">${data.humidity}</span></p>
+                    <p class="text-sm">Pressure: <span class="font-semibold">${data.pressure}</span></p>
+                </div>
+            `;
+            chatHistory.appendChild(card);
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+        }
+
+        // Add a list of news headlines and links
+        function addNewsLinks(articles) {
+            const listContainer = document.createElement('div');
+            listContainer.className = "flex items-start space-x-3";
+            listContainer.innerHTML = `
+                <div class="flex-shrink-0 w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold">A</div>
+                <div class="bg-white text-gray-800 rounded-xl p-4 max-w-xs md:max-w-md shadow-lg border border-gray-200">
+                    <h4 class="font-bold text-lg mb-2">News Headlines</h4>
+                    <ul class="list-disc list-inside space-y-1">
+                        ${articles.map(article => `<li class="text-sm"><a href="${article.url}" target="_blank" class="text-blue-600 hover:underline">${article.title}</a></li>`).join('')}
+                    </ul>
+                </div>
+            `;
+            chatHistory.appendChild(listContainer);
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+        }
+
+        // Text to Speech
+        function speak(text) {
+            const speech = new SpeechSynthesisUtterance(text);
+            window.speechSynthesis.speak(speech);
+        }
+
+        // Send command to the Python backend
+        async function sendCommand(command) {
+            try {
+                // Show a processing state
+                assistantStatus.textContent = "Processing...";
+                const response = await fetch('http://127.0.0.1:5000/process_command', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ command: command }),
+                });
+
+                const result = await response.json();
+                console.log(result);
+
+                // Speak the assistant's response
+                speak(result.text);
+                assistantStatus.textContent = "How can I help you today?";
+
+                // Handle the different response types
+                if (result.type === 'weather') {
+                    addWeatherCard(result);
+                } else if (result.type === 'news') {
+                    addMessage(result.text);
+                    currentArticles = result.articles; // Store articles for later
+                } else if (result.type === 'news_confirmation' && currentArticles.length > 0) {
+                    // Only display links if we have stored articles from a previous news query
+                    addNewsLinks(currentArticles);
+                    // Clear the stored articles to prevent showing them again on a different 'yes' command
+                    currentArticles = [];
+                } else if (result.type === 'reminder_prompt' || result.type === 'reminder_set' || result.type === 'goodbye') {
+                    addMessage(result.text);
+                } else {
+                    addMessage(result.text);
+                }
+            } catch (error) {
+                console.error("Error communicating with backend:", error);
+                const errorMessage = "Sorry, I'm having trouble connecting to the backend server. Please make sure the Python script is running.";
+                addMessage(errorMessage);
+                speak(errorMessage);
+                assistantStatus.textContent = "Error occurred.";
+            }
+        }
+
+        // Event handler for the microphone button
+        micButton.onclick = () => {
+            if (isListening) {
+                recognition.stop();
+                isListening = false;
+                micButton.classList.remove('bg-red-500', 'pulse-animation');
+                micButton.classList.add('bg-indigo-500');
+                userInputDisplay.textContent = "Click the microphone to start speaking...";
+            } else {
+                recognition.start();
+                isListening = true;
+                micButton.classList.remove('bg-indigo-500');
+                micButton.classList.add('bg-red-500', 'pulse-animation');
+                userInputDisplay.textContent = "Listening...";
+            }
+        };
+
+        // Handle recognized speech
+        recognition.onresult = (event) => {
+            const command = event.results[0][0].transcript.toLowerCase();
+            userInputDisplay.textContent = "You said: " + command;
+            addMessage(command, true);
+
+            if (!isActivated) {
+                // Check for activation phrases if not yet activated
+                const activationPhrases = ["hello", "hi", "hey", "hullos", "ni hao", "namaste", "namaskaaram", "vandan", "konichiwa", "hola", "bonjour", "ciao", "xdravstvuyte", "marhaba", "vanakkam", "nomoshkaar", "sat sri akal", "aadab", "parnam", "tashi delek", "radhe-radhe", "khamma gani", "chibai"];
+                const isActivationCommand = activationPhrases.some(phrase => command.includes(phrase));
+                if (isActivationCommand) {
+                    isActivated = true;
+                    addMessage("You said an activation phrase. I'm listening...", false);
+                    sendCommand("hello"); // Send a generic hello command to get the welcome message
+                } else {
+                    speak("I'm sorry, I'm in standby mode. Please say 'hello' or another greeting to activate me.");
+                    addMessage("I'm in standby mode. Please say 'hello' or another greeting to activate me.");
+                }
+            } else {
+                // If activated, send all commands to the backend
+                sendCommand(command);
+            }
+        };
+
+        recognition.onend = () => {
+            // Stop listening after a single command.
+            isListening = false;
+            micButton.classList.remove('bg-red-500', 'pulse-animation');
+            micButton.classList.add('bg-indigo-500');
+            userInputDisplay.textContent = "Click the microphone to start speaking...";
+        };
+
+        recognition.onerror = (event) => {
+            console.error('Speech recognition error:', event.error);
+            isListening = false;
+            micButton.classList.remove('bg-red-500', 'pulse-animation');
+            micButton.classList.add('bg-indigo-500');
+            userInputDisplay.textContent = "Click the microphone to start speaking...";
+            let errorMessage = "I'm sorry, there was an error with speech recognition. Please try again.";
+
+            // Provide more specific error messages
+            switch (event.error) {
+                case 'not-allowed':
+                    errorMessage = "Permission to use the microphone was denied. Please check your browser's settings to allow microphone access.";
+                    break;
+                case 'no-speech':
+                    errorMessage = "I didn't detect any speech. Please try speaking louder or check your microphone.";
+                    break;
+                case 'audio-capture':
+                    errorMessage = "An issue occurred with audio capture. Please ensure your microphone is working properly.";
+                    break;
+            }
+
+            addMessage(errorMessage);
+            speak(errorMessage);
+        };
+    </script>
+</body>
+</html>
